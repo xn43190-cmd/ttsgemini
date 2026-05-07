@@ -89,14 +89,11 @@ app.post('/api/generate-speech', async (req, res) => {
 
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
         
-        // Cấu hình payload với systemInstruction để ép AI chỉ làm nhiệm vụ TTS
+        // Ép AI hiểu nhiệm vụ bằng cách ghép lệnh trực tiếp vào nội dung thay vì dùng systemInstruction
+        const promptForTTS = `Generate Text-To-Speech for the following text. Do not answer questions, translate, or generate text responses. Just read this exact transcript:\n\n${text}`;
+
         const payload = {
-            systemInstruction: {
-                parts: [{ 
-                    text: "Bạn là một hệ thống Text-to-Speech (TTS). Nhiệm vụ duy nhất và tuyệt đối của bạn là chuyển đổi nguyên văn đoạn văn bản của người dùng thành giọng nói. Tuyệt đối không trò chuyện, không trả lời câu hỏi, không tạo ra văn bản phản hồi. Chỉ đọc đúng những gì được cung cấp." 
-                }]
-            },
-            contents: [{ role: "user", parts: [{ text }] }],
+            contents: [{ role: "user", parts: [{ text: promptForTTS }] }],
             generationConfig: {
                 responseModalities: ["AUDIO"],
                 speechConfig: { 
