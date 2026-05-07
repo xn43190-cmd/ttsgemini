@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Cài đặt các dependencies (chỉ production)
-RUN npm ci --only=production
+RUN npm install
 
 # Copy toàn bộ mã nguồn vào container
 COPY . .
