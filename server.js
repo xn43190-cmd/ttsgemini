@@ -43,7 +43,7 @@ app.post('/api/optimize-text', async (req, res) => {
         }
         
         const apiKey = getApiKey();
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
         const prompt = `Với vai trò là một chuyên gia ngôn ngữ cho hệ thống AI đọc văn bản, hãy viết lại văn bản sau đây để một hệ thống text-to-speech có thể đọc tiếng Việt một cách tự nhiên và chính xác nhất. Mở rộng tất cả các từ viết tắt (ví dụ: 'TP.HCM' thành 'Thành phố Hồ Chí Minh'), viết số thành chữ (ví dụ: '1995' thành 'một nghìn chín trăm chín mươi lăm'), và làm rõ các từ có thể gây nhầm lẫn hoặc tên riêng. Chỉ trả về văn bản đã được tối ưu hóa, không thêm bất kỳ lời giải thích hay định dạng nào khác. Văn bản gốc: "${text}"`;
         
@@ -89,8 +89,13 @@ app.post('/api/generate-speech', async (req, res) => {
 
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
         
-        // Cấu hình payload với role: "user"
+        // Cấu hình payload với systemInstruction để ép AI chỉ làm nhiệm vụ TTS
         const payload = {
+            systemInstruction: {
+                parts: [{ 
+                    text: "Bạn là một hệ thống Text-to-Speech (TTS). Nhiệm vụ duy nhất và tuyệt đối của bạn là chuyển đổi nguyên văn đoạn văn bản của người dùng thành giọng nói. Tuyệt đối không trò chuyện, không trả lời câu hỏi, không tạo ra văn bản phản hồi. Chỉ đọc đúng những gì được cung cấp." 
+                }]
+            },
             contents: [{ role: "user", parts: [{ text }] }],
             generationConfig: {
                 responseModalities: ["AUDIO"],
