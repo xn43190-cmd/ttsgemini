@@ -3,9 +3,9 @@ const express = require('express');
 const fetch = require('node-fetch');
 const dotenv = require('dotenv');
 const path = require('path');
-const fs = require('fs'); // Module để làm việc với file hệ thống
+const fs = require('fs');
 
-// Kích hoạt dotenv để đọc biến môi trường từ tệp .env (khi chạy local)
+// Kích hoạt dotenv
 dotenv.config();
 
 // Khởi tạo ứng dụng Express
@@ -17,13 +17,11 @@ if (!fs.existsSync(TEMP_AUDIO_DIR)) {
     fs.mkdirSync(TEMP_AUDIO_DIR);
 }
 
-// Sử dụng middleware để xử lý JSON và phục vụ các tệp tĩnh từ thư mục 'public'
-// LƯU Ý: Cần đảm bảo bạn đã tạo thư mục 'public' và đặt file index.html vào trong đó
+// Sử dụng middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-
-// Hàm trợ giúp để lấy một API key ngẫu nhiên (không đổi)
+// Hàm trợ giúp để lấy một API key ngẫu nhiên
 const getApiKey = () => {
     const apiKeysString = process.env.GOOGLE_API_KEYS;
     if (!apiKeysString) {
@@ -36,7 +34,7 @@ const getApiKey = () => {
     return apiKeys[Math.floor(Math.random() * apiKeys.length)];
 };
 
-// Endpoint để tối ưu hóa văn bản (không đổi)
+// Endpoint để tối ưu hóa văn bản
 app.post('/api/optimize-text', async (req, res) => {
     try {
         const { text } = req.body;
@@ -45,7 +43,7 @@ app.post('/api/optimize-text', async (req, res) => {
         }
         
         const apiKey = getApiKey();
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
         const prompt = `Với vai trò là một chuyên gia ngôn ngữ cho hệ thống AI đọc văn bản, hãy viết lại văn bản sau đây để một hệ thống text-to-speech có thể đọc tiếng Việt một cách tự nhiên và chính xác nhất. Mở rộng tất cả các từ viết tắt (ví dụ: 'TP.HCM' thành 'Thành phố Hồ Chí Minh'), viết số thành chữ (ví dụ: '1995' thành 'một nghìn chín trăm chín mươi lăm'), và làm rõ các từ có thể gây nhầm lẫn hoặc tên riêng. Chỉ trả về văn bản đã được tối ưu hóa, không thêm bất kỳ lời giải thích hay định dạng nào khác. Văn bản gốc: "${text}"`;
         
@@ -80,8 +78,7 @@ app.post('/api/optimize-text', async (req, res) => {
     }
 });
 
-
-// Endpoint để xử lý việc tạo giọng đọc (ĐÃ SỬA LỖI VÀ CẬP NHẬT)
+// Endpoint để xử lý việc tạo giọng đọc (BẢN ĐÃ FIX LỖI AUDIO)
 app.post('/api/generate-speech', async (req, res) => {
     try {
         const apiKey = getApiKey();
@@ -91,11 +88,17 @@ app.post('/api/generate-speech', async (req, res) => {
         }
 
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+        
+        // Cấu hình payload với role: "user"
         const payload = {
-            contents: [{ parts: [{ text }] }],
+            contents: [{ role: "user", parts: [{ text }] }],
             generationConfig: {
                 responseModalities: ["AUDIO"],
-                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+                speechConfig: { 
+                    voiceConfig: { 
+                        prebuiltVoiceConfig: { voiceName: voice } 
+                    } 
+                }
             },
             model: "gemini-2.5-flash-preview-tts"
         };
@@ -106,8 +109,6 @@ app.post('/api/generate-speech', async (req, res) => {
             body: JSON.stringify(payload)
         });
 
-        // === PHẦN SỬA LỖI NẰM Ở ĐÂY ===
-        // Khối xử lý lỗi đã được khôi phục lại đầy đủ
         if (!apiResponse.ok) {
             let googleErrorMsg = `Lỗi từ Google API: ${apiResponse.status} ${apiResponse.statusText}`;
             try {
@@ -120,24 +121,36 @@ app.post('/api/generate-speech', async (req, res) => {
         }
 
         const result = await apiResponse.json();
-        const part = result?.candidates?.[0]?.content?.parts?.[0];
-        const audioData = part?.inlineData?.data;
-        const mimeType = part?.inlineData?.mimeType;
-
-        if (!audioData || !mimeType) throw new Error("Không nhận được dữ liệu âm thanh hợp lệ từ API.");
         
-        // --- PHẦN LOGIC MỚI ĐỂ LƯU FILE ---
+        // Kiểm tra xem có bị chặn bởi bộ lọc an toàn không
+        const finishReason = result?.candidates?.[0]?.finishReason;
+        if (finishReason !== 'STOP' && finishReason !== undefined) {
+            throw new Error(`Yêu cầu bị chặn bởi bộ lọc an toàn của Google (Lý do: ${finishReason}).`);
+        }
+
+        // Tìm phần tử chứa dữ liệu âm thanh (inlineData) trong mảng parts
+        const parts = result?.candidates?.[0]?.content?.parts || [];
+        const audioPart = parts.find(p => p.inlineData && p.inlineData.mimeType?.startsWith('audio/'));
+
+        const audioData = audioPart?.inlineData?.data;
+        const mimeType = audioPart?.inlineData?.mimeType;
+
+        if (!audioData || !mimeType) {
+            // Log chi tiết JSON lỗi để kiểm tra trong Portainer Logs
+            console.error("Chi tiết phản hồi thiếu audio:", JSON.stringify(result, null, 2));
+            throw new Error("Không nhận được dữ liệu âm thanh hợp lệ từ API. Hãy kiểm tra Logs.");
+        }
+        
+        // Lưu file tạm thời
         const fileId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.wav`;
         const filePath = path.join(TEMP_AUDIO_DIR, fileId);
         
-        // Chuyển base64 sang buffer và ghi file
         const audioBuffer = Buffer.from(audioData, 'base64');
         fs.writeFileSync(filePath, audioBuffer);
 
         const sampleRateMatch = mimeType.match(/rate=(\d+)/);
         const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
 
-        // Trả về cả audioContent (để phát) và fileId (để tải)
         res.status(200).json({ 
             audioContent: audioData, 
             sampleRate: sampleRate,
@@ -150,7 +163,7 @@ app.post('/api/generate-speech', async (req, res) => {
     }
 });
 
-// === ENDPOINT MỚI ĐỂ TẢI FILE ===
+// Endpoint để tải file
 app.get('/api/download', (req, res) => {
     const { fileId } = req.query;
 
@@ -161,12 +174,11 @@ app.get('/api/download', (req, res) => {
     const filePath = path.join(TEMP_AUDIO_DIR, fileId);
 
     if (fs.existsSync(filePath)) {
-        // res.download() sẽ tự động gửi file và yêu cầu trình duyệt tải xuống
         res.download(filePath, fileId, (err) => {
             if (err) {
                 console.error("Lỗi khi gửi file:", err);
             }
-            // Tự động xóa file sau khi gửi xong để tiết kiệm dung lượng
+            // Xóa file sau khi tải để giải phóng dung lượng
             fs.unlink(filePath, (unlinkErr) => {
                 if (unlinkErr) console.error("Lỗi khi xóa file tạm:", unlinkErr);
             });
@@ -176,17 +188,12 @@ app.get('/api/download', (req, res) => {
     }
 });
 
-
-// Route để phục vụ trang index.html cho tất cả các yêu cầu GET khác
+// Route mặc định phục vụ index.html
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/api/health', (req, res) => {
-    res.status(200).json({ status: "OK", server: "Ready" });
-});
-
-// Lắng nghe ở cổng được cung cấp bởi Render, hoặc 3000 khi chạy local
+// Port lắng nghe
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server đang chạy ở cổng ${PORT}`);
