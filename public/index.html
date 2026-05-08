@@ -15,6 +15,7 @@
     </script>
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
@@ -224,6 +225,21 @@
             const base64ToArrayBuffer = (base64) => { const binaryString = window.atob(base64); const len = binaryString.length; const bytes = new Uint8Array(len); for (let i = 0; i < len; i++) { bytes[i] = binaryString.charCodeAt(i); } return bytes.buffer; };
             const pcmToWav = (pcmData, sampleRate) => { const numChannels = 1, bitsPerSample = 16; const blockAlign = (numChannels * bitsPerSample) / 8; const byteRate = sampleRate * blockAlign; const dataSize = pcmData.length * (bitsPerSample / 8); const buffer = new ArrayBuffer(44 + dataSize); const view = new DataView(buffer); const writeString = (view, offset, string) => { for (let i = 0; i < string.length; i++) { view.setUint8(offset + i, string.charCodeAt(i)); } }; writeString(view, 0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeString(view, 8, 'WAVE'); writeString(view, 12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true); view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true); view.setUint16(34, bitsPerSample, true); writeString(view, 36, 'data'); view.setUint32(40, dataSize, true); let offset = 44; for (let i = 0; i < pcmData.length; i++, offset += 2) { view.setInt16(offset, pcmData[i], true); } return new Blob([view], { type: 'audio/wav' }); };
             
+            // Hàm chuyển đổi PCM sang MP3
+            const pcmToMp3 = (pcmData, sampleRate) => {
+                const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128); // 1 Kênh (Mono), Tốc độ mẫu, 128kbps
+                const mp3Data = [];
+                const sampleBlockSize = 1152; // Kích thước khối chuẩn của MP3
+                for (let i = 0; i < pcmData.length; i += sampleBlockSize) {
+                    const sampleChunk = pcmData.subarray(i, i + sampleBlockSize);
+                    const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
+                    if (mp3buf.length > 0) mp3Data.push(new Int8Array(mp3buf));
+                }
+                const mp3buf = mp3encoder.flush();
+                if (mp3buf.length > 0) mp3Data.push(new Int8Array(mp3buf));
+                return new Blob(mp3Data, { type: 'audio/mp3' });
+            };
+            
             const showError = (message) => { 
                 if (message) { 
                     let displayMessage = message; 
@@ -308,7 +324,9 @@
                         currentAudioFileId = fileId; 
                         const pcmBuffer = base64ToArrayBuffer(audioContent); 
                         const pcm16 = new Int16Array(pcmBuffer); 
-                        generatedAudioBlob = pcmToWav(pcm16, sampleRate); 
+                        
+                        // Đã thay đổi: Tạo file mp3 thay vì wav
+                        generatedAudioBlob = pcmToMp3(pcm16, sampleRate); 
                         const audioUrl = URL.createObjectURL(generatedAudioBlob); 
                         
                         playerContainer.style.display = 'flex'; 
@@ -323,28 +341,25 @@
                 const iosGuide = document.getElementById('ios-guide');
                 if (iosGuide) iosGuide.classList.add('hidden');
                 
-                // Sửa logic: Kiểm tra xem trình duyệt đã tạo file hoàn chỉnh (Blob) chưa
                 if (!generatedAudioBlob) {
                     alert("Chưa có tệp âm thanh để tải. Vui lòng tạo giọng đọc trước.");
                     return;
                 }
 
-                // Tạo một đường dẫn ảo tải trực tiếp file hoàn hảo từ bộ nhớ trình duyệt
                 const url = URL.createObjectURL(generatedAudioBlob);
                 const a = document.createElement('a');
                 a.style.display = 'none';
                 a.href = url;
                 
-                // Tự động tạo tên file chuyên nghiệp theo thời gian thực
                 const now = new Date();
                 const timeString = `${now.getHours()}h${now.getMinutes()}p${now.getSeconds()}s`;
-                a.download = `Audio_TTS_${timeString}.wav`;
                 
-                // Kích hoạt tiến trình tải xuống
+                // Đã thay đổi: Tải về file mp3
+                a.download = `Audio_TTS_${timeString}.mp3`;
+                
                 document.body.appendChild(a);
                 a.click();
                 
-                // Dọn dẹp bộ nhớ RAM sau khi tải xong
                 setTimeout(() => {
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(url);
