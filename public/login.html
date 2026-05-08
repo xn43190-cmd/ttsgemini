@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Đăng Nhập - Pháp Môn Tâm Linh TTS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { paper: '#F9F7F2', ink: '#5D2E2E', clay: '#8C4A4A', clayHover: '#7A3E3E' },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    boxShadow: { 'paper': '0 4px 20px -2px rgba(93, 46, 46, 0.1)', 'float': '0 10px 30px -5px rgba(140, 74, 74, 0.4)' }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-paper text-ink font-sans min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white rounded-3xl shadow-paper p-8 md:p-10 relative overflow-hidden">
+        <div class="absolute top-0 left-0 w-full h-2 bg-clay"></div>
+        <div class="text-center mb-8">
+            <h2 class="text-2xl font-bold uppercase tracking-widest text-clay mb-2">Pháp Môn Tâm Linh</h2>
+            <p class="text-ink/60 italic text-sm">Hệ thống Text-to-Speech</p>
+        </div>
+        <form id="loginForm" class="space-y-6">
+            <div class="space-y-2">
+                <label class="text-sm font-semibold text-ink/80 ml-1">Email Thành Viên</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i class="fa-solid fa-envelope text-clay/50"></i></div>
+                    <input type="email" id="email" class="w-full bg-paper border border-transparent focus:border-clay focus:bg-white focus:ring-0 rounded-xl py-3 pl-11 pr-4 text-ink placeholder-ink/30 transition-all duration-300 outline-none" placeholder="example@gmail.com" required>
+                </div>
+            </div>
+            <button type="submit" id="submitBtn" class="w-full bg-clay text-white font-bold py-4 rounded-2xl shadow-float hover:-translate-y-1 hover:bg-clayHover active:scale-95 transition-all duration-300 flex items-center justify-center gap-2">
+                <span>Đăng Nhập</span><i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </form>
+        <div id="errorBox" class="hidden mt-6 p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3 animate-pulse">
+            <i class="fa-solid fa-circle-exclamation text-red-500 mt-1"></i>
+            <p id="errorMsg" class="text-red-600 text-sm font-medium"></p>
+        </div>
+    </div>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const btn = document.getElementById('submitBtn');
+            const errorBox = document.getElementById('errorBox');
+            
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            errorBox.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                if (data.success) { window.location.href = '/'; } 
+                else { 
+                    document.getElementById('errorMsg').innerText = data.error; 
+                    errorBox.classList.remove('hidden'); 
+                    btn.innerHTML = '<span>Đăng Nhập</span><i class="fa-solid fa-arrow-right"></i>';
+                }
+            } catch (err) {
+                document.getElementById('errorMsg').innerText = "Lỗi kết nối máy chủ.";
+                errorBox.classList.remove('hidden');
+                btn.innerHTML = '<span>Đăng Nhập</span><i class="fa-solid fa-arrow-right"></i>';
+            }
+        });
+    </script>
+</body>
+</html>
