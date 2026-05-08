@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Pháp Môn Tâm Linh 心靈法門</title>
     <link rel="icon" href="logo.png" type="image/png">
     
@@ -64,11 +64,12 @@
         input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.1); }
     </style>
 </head>
-<body class="font-sans antialiased h-screen h-[100dvh] flex flex-col overflow-hidden">
+
+<body class="font-sans antialiased fixed inset-0 w-full flex flex-col overflow-hidden bg-paper">
 
     <main class="flex-grow w-full max-w-5xl mx-auto p-4 md:p-8 pb-2 md:pb-4 flex flex-col overflow-hidden">
         
-        <header class="flex-none mb-4 md:mb-6 w-full flex flex-col md:flex-row justify-between items-center md:items-start gap-4 md:gap-0">
+        <header class="flex-none mb-4 md:mb-6 w-full flex flex-col md:flex-row justify-between items-center md:items-start gap-4 md:gap-0 mt-2">
             <div class="w-full md:w-auto flex justify-end md:order-2">
                 <a href="/api/logout" class="group flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm hover:shadow-paper border border-transparent hover:border-clay/20 transition-all duration-300">
                     <span class="text-sm font-semibold text-ink/80 group-hover:text-clay">Thoát</span>
@@ -106,7 +107,7 @@
         </div>
     </main>
 
-    <footer class="flex-none w-full md:w-auto md:max-w-4xl mx-auto z-40 px-4 md:px-0 pb-4 md:pb-6">
+    <footer class="flex-none w-full md:w-auto md:max-w-4xl mx-auto z-40 px-4 md:px-0" style="padding-bottom: max(1rem, env(safe-area-inset-bottom));">
         <div class="bg-white/95 backdrop-blur-md rounded-3xl shadow-float border border-paper p-2 md:p-3 flex flex-col md:flex-row items-center gap-3 transition-all duration-300">
             
             <div id="player-container" style="display: none;" class="w-full md:w-auto md:min-w-[320px] flex-1 items-center gap-2 md:gap-3 p-1 md:p-2 bg-paper rounded-2xl">
@@ -225,11 +226,10 @@
             const base64ToArrayBuffer = (base64) => { const binaryString = window.atob(base64); const len = binaryString.length; const bytes = new Uint8Array(len); for (let i = 0; i < len; i++) { bytes[i] = binaryString.charCodeAt(i); } return bytes.buffer; };
             const pcmToWav = (pcmData, sampleRate) => { const numChannels = 1, bitsPerSample = 16; const blockAlign = (numChannels * bitsPerSample) / 8; const byteRate = sampleRate * blockAlign; const dataSize = pcmData.length * (bitsPerSample / 8); const buffer = new ArrayBuffer(44 + dataSize); const view = new DataView(buffer); const writeString = (view, offset, string) => { for (let i = 0; i < string.length; i++) { view.setUint8(offset + i, string.charCodeAt(i)); } }; writeString(view, 0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeString(view, 8, 'WAVE'); writeString(view, 12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true); view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true); view.setUint16(34, bitsPerSample, true); writeString(view, 36, 'data'); view.setUint32(40, dataSize, true); let offset = 44; for (let i = 0; i < pcmData.length; i++, offset += 2) { view.setInt16(offset, pcmData[i], true); } return new Blob([view], { type: 'audio/wav' }); };
             
-            // Hàm chuyển đổi PCM sang MP3
             const pcmToMp3 = (pcmData, sampleRate) => {
-                const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128); // 1 Kênh (Mono), Tốc độ mẫu, 128kbps
+                const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128); 
                 const mp3Data = [];
-                const sampleBlockSize = 1152; // Kích thước khối chuẩn của MP3
+                const sampleBlockSize = 1152; 
                 for (let i = 0; i < pcmData.length; i += sampleBlockSize) {
                     const sampleChunk = pcmData.subarray(i, i + sampleBlockSize);
                     const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
@@ -325,7 +325,6 @@
                         const pcmBuffer = base64ToArrayBuffer(audioContent); 
                         const pcm16 = new Int16Array(pcmBuffer); 
                         
-                        // Đã thay đổi: Tạo file mp3 thay vì wav
                         generatedAudioBlob = pcmToMp3(pcm16, sampleRate); 
                         const audioUrl = URL.createObjectURL(generatedAudioBlob); 
                         
@@ -354,7 +353,6 @@
                 const now = new Date();
                 const timeString = `${now.getHours()}h${now.getMinutes()}p${now.getSeconds()}s`;
                 
-                // Đã thay đổi: Tải về file mp3
                 a.download = `Audio_TTS_${timeString}.mp3`;
                 
                 document.body.appendChild(a);
