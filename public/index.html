@@ -320,15 +320,35 @@
             };
 
             const handleDownload = () => {
-                // Đã fix lỗi JS chặn tải file bằng lệnh kiểm tra an toàn (Optional Chaining)
                 const iosGuide = document.getElementById('ios-guide');
                 if (iosGuide) iosGuide.classList.add('hidden');
                 
-                if (!currentAudioFileId) {
+                // Sửa logic: Kiểm tra xem trình duyệt đã tạo file hoàn chỉnh (Blob) chưa
+                if (!generatedAudioBlob) {
                     alert("Chưa có tệp âm thanh để tải. Vui lòng tạo giọng đọc trước.");
                     return;
                 }
-                window.location.href = `/api/download?fileId=${currentAudioFileId}`;
+
+                // Tạo một đường dẫn ảo tải trực tiếp file hoàn hảo từ bộ nhớ trình duyệt
+                const url = URL.createObjectURL(generatedAudioBlob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                
+                // Tự động tạo tên file chuyên nghiệp theo thời gian thực
+                const now = new Date();
+                const timeString = `${now.getHours()}h${now.getMinutes()}p${now.getSeconds()}s`;
+                a.download = `Audio_TTS_${timeString}.wav`;
+                
+                // Kích hoạt tiến trình tải xuống
+                document.body.appendChild(a);
+                a.click();
+                
+                // Dọn dẹp bộ nhớ RAM sau khi tải xong
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 100);
             };
 
             const handleOptimizeText = async () => {
