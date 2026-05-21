@@ -405,8 +405,8 @@
                     const response = await fetch('/api/optimize-text', { 
                         method: 'POST', 
                         headers: { 'Content-Type': 'application/json' }, 
-                        // Thêm model: modelSelect.value vào body
-                        body: JSON.stringify({ text, model: modelSelect.value }) 
+                        // CHỈ CẦN GỬI text, KHÔNG GỬI model NỮA
+                        body: JSON.stringify({ text }) 
                     });
                     const data = await response.json();
                     if (!response.ok || !data.success) { throw new Error(data.error || "Lỗi không xác định khi tối ưu hóa."); }
