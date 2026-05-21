@@ -155,9 +155,12 @@ app.get('/', (req, res) => {
 
 app.post('/api/optimize-text', requireLogin, async (req, res) => {
     try {
-        const { text, model } = req.body; // <--- Thêm nhận model
+        const { text } = req.body; // <--- Xóa chữ model ở đây
         const apiKey = getApiKeyForUser(req);
-        const targetModel = model || "gemini-2.5-flash"; // <--- Fallback
+        
+        // Fix cứng lại dùng model văn bản chuẩn để tối ưu hóa chữ
+        const targetModel = "gemini-2.5-flash"; 
+        
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;        
         const prompt = `Với vai trò là một chuyên gia ngôn ngữ cho hệ thống AI đọc văn bản, hãy viết lại văn bản sau đây để một hệ thống text-to-speech có thể đọc tiếng Việt một cách tự nhiên và chính xác nhất. Mở rộng tất cả các từ viết tắt (ví dụ: 'TP.HCM' thành 'Thành phố Hồ Chí Minh'), viết số thành chữ (ví dụ: '1995' thành 'một nghìn chín trăm chín mươi lăm'), và làm rõ các từ có thể gây nhầm lẫn hoặc tên riêng. Chỉ trả về văn bản đã được tối ưu hóa, không thêm bất kỳ lời giải thích hay định dạng nào khác. Văn bản gốc: "${text}"`;
         const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
