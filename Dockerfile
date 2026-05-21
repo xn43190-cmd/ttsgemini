@@ -1,22 +1,22 @@
 FROM node:20-alpine
 
-# Cài đặt công cụ build cần thiết
+# Cài đặt bộ công cụ biên dịch (cần thiết cho các gói C++ như lamejs)
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 COPY package*.json ./
 
-# Cài đặt production dependencies
+# Cài đặt dependencies
 RUN npm ci --only=production
 
-# Xóa công cụ build sau khi cài xong để image nhẹ
+# Xóa công cụ biên dịch để image nhẹ hơn sau khi build
 RUN apk del python3 make g++
 
 COPY . .
 
-# Tạo thư mục temp_audio và cấp quyền
+# Cấp quyền cho user node
 RUN mkdir -p temp_audio && chown -R node:node /app
-
 USER node
+
 EXPOSE 3000
 CMD ["npm", "start"]
