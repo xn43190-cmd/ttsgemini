@@ -197,8 +197,15 @@ app.post('/api/generate-speech', requireLogin, async (req, res) => {
         const result = await apiResponse.json();
         
         const audioPart = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData && p.inlineData.mimeType?.startsWith('audio/'));
+        if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
+            console.error("Lỗi từ Google API (Không có Audio):", JSON.stringify(result, null, 2));
+            throw new Error("Model bạn chọn không hỗ trợ tạo giọng nói, hoặc nội dung bị bộ lọc Google từ chối.");
+        }
         const audioData = audioPart?.inlineData?.data;
         const mimeType = audioPart?.inlineData?.mimeType;
+
+        const rateMatch = mimeType.match(/rate=(\d+)/);
+        const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000; // Fallback về 24000Hz nếu không tìm thấy
         
         const fileId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.wav`;
         const filePath = path.join(TEMP_AUDIO_DIR, fileId);
