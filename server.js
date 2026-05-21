@@ -104,6 +104,40 @@ app.get('/api/logout', (req, res) => {
     res.redirect('/login');
 });
 
+// --- API LẤY DANH SÁCH MODEL TỪ TRANG TÍNH 5 ---
+app.get('/api/models', requireLogin, async (req, res) => {
+    try {
+        if (!process.env.GOOGLE_SHEET_ID) return res.json({ models: ["gemini-2.5-flash-preview-tts"] });
+        
+        const auth = new google.auth.GoogleAuth({
+            credentials: {
+                client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+                private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+            },
+            scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+        });
+
+        const sheets = google.sheets({ version: 'v4', auth });
+        
+        // Lấy dữ liệu ở Cột B (Tên Model) bắt đầu từ dòng 2 (bỏ qua tiêu đề)
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: process.env.GOOGLE_SHEET_ID,
+            range: "'Trang tính5'!B2:B",
+        });
+
+        const rows = response.data.values;
+        if (!rows || rows.length === 0) {
+            return res.json({ models: ["gemini-2.5-flash-preview-tts"] }); 
+        }
+
+        const models = rows.map(row => row[0]).filter(m => m);
+        res.json({ models });
+    } catch (error) {
+        console.error("Lỗi lấy danh sách model:", error);
+        res.status(500).json({ error: "Lỗi tải model" });
+    }
+});
+
 // Phục vụ tệp tĩnh
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
@@ -121,10 +155,10 @@ app.get('/', (req, res) => {
 
 app.post('/api/optimize-text', requireLogin, async (req, res) => {
     try {
-        const { text } = req.body;
-        const apiKey = getApiKeyForUser(req); // Lấy key từ session
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-        
+        const { text, model } = req.body; // <--- Thêm nhận model
+        const apiKey = getApiKeyForUser(req);
+        const targetModel = model || "gemini-2.5-flash"; // <--- Fallback
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;        
         const prompt = `Với vai trò là một chuyên gia ngôn ngữ cho hệ thống AI đọc văn bản, hãy viết lại văn bản sau đây để một hệ thống text-to-speech có thể đọc tiếng Việt một cách tự nhiên và chính xác nhất. Mở rộng tất cả các từ viết tắt (ví dụ: 'TP.HCM' thành 'Thành phố Hồ Chí Minh'), viết số thành chữ (ví dụ: '1995' thành 'một nghìn chín trăm chín mươi lăm'), và làm rõ các từ có thể gây nhầm lẫn hoặc tên riêng. Chỉ trả về văn bản đã được tối ưu hóa, không thêm bất kỳ lời giải thích hay định dạng nào khác. Văn bản gốc: "${text}"`;
         const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
         
@@ -140,9 +174,10 @@ app.post('/api/optimize-text', requireLogin, async (req, res) => {
 
 app.post('/api/generate-speech', requireLogin, async (req, res) => {
     try {
-        const apiKey = getApiKeyForUser(req); // Lấy key từ session
-        const { text, voice } = req.body;
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+        const apiKey = getApiKeyForUser(req);
+        const { text, voice, model } = req.body; // <--- Thêm nhận model
+        const targetModel = model || "gemini-2.5-flash-preview-tts"; // <--- Fallback
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
         
         const promptForTTS = `Generate Text-To-Speech for the following text. Do not answer questions, translate, or generate text responses. Just read this exact transcript:\n\n${text}`;
         
@@ -152,7 +187,7 @@ app.post('/api/generate-speech', requireLogin, async (req, res) => {
                 responseModalities: ["AUDIO"], 
                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } 
             },
-            model: "gemini-2.5-flash-preview-tts"
+            model: targetModel // <--- Thay cứng tên model bằng biến targetModel
         };
         
         const apiResponse = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
