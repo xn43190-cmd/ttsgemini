@@ -14,7 +14,9 @@ RUN apk del python3 make g++
 
 COPY . .
 
+# Tạo thư mục temp_audio và cấp quyền
 RUN mkdir -p temp_audio && chown -R node:node /app
+
 USER node
 EXPOSE 3000
 CMD ["npm", "start"]
