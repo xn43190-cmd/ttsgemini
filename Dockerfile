@@ -14,7 +14,7 @@ RUN npm install
 COPY . .
 
 # Tạo thư mục temp_audio và cấp quyền để app không bị lỗi permission
-RUN mkdir -p temp_audio && chown -R node:node /app
+RUN mkdir -p /app/temp_audio && chown -R node:node /app/temp_audio
 
 # Chuyển sang user 'node' (không dùng root để bảo mật)
 USER node
