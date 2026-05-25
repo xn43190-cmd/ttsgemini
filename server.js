@@ -9,9 +9,6 @@ const { google } = require('googleapis');
 dotenv.config();
 const app = express();
 
-const TEMP_AUDIO_DIR = path.join(__dirname, 'temp_audio');
-if (!fs.existsSync(TEMP_AUDIO_DIR)) fs.mkdirSync(TEMP_AUDIO_DIR);
-
 app.use(express.json());
 
 // Cấu hình Session (Tồn tại trong 24h)
@@ -221,15 +218,6 @@ app.post('/api/generate-speech', requireLogin, async (req, res) => {
     } catch (error) { 
         res.status(500).json({ error: error.message }); 
     }
-});
-
-app.get('/api/download', (req, res) => {
-    if (!req.session.user) return res.status(401).send('Unauthorized');
-    const { fileId } = req.query;
-    const filePath = path.join(TEMP_AUDIO_DIR, fileId);
-    if (fs.existsSync(filePath)) {
-        res.download(filePath, fileId, () => fs.unlink(filePath, () => {}));
-    } else res.status(404).send('Not Found');
 });
 
 const PORT = process.env.PORT || 3000;
