@@ -180,12 +180,28 @@ app.post('/api/generate-speech', requireLogin, async (req, res) => {
         
         const payload = {
             contents: [{ role: "user", parts: [{ text: promptForTTS }] }],
+            // THÊM ĐOẠN NÀY ĐỂ TẮT BỘ LỌC AN TOÀN
+            safetySettings: [
+                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+            ],
             generationConfig: { 
                 responseModalities: ["AUDIO"], 
                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } 
             },
             model: targetModel
         };
+
+        const audioPart = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData && p.inlineData.mimeType?.startsWith('audio/'));
+        if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
+            // In chi tiết lỗi ra màn hình Terminal (Server Box) để bạn dễ kiểm tra
+            console.error("====== LỖI TỪ GOOGLE API ======");
+            console.error("Đoạn văn bị lỗi:", chunk);
+            console.error("Lý do từ chối:", JSON.stringify(result, null, 2));
+            throw new Error("Một đoạn văn bản bị từ chối (Khả năng do bộ lọc an toàn). Vui lòng kiểm tra log trên máy chủ.");
+        }
         
         const apiResponse = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const result = await apiResponse.json();
