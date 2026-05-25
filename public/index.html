@@ -15,6 +15,7 @@
     </script>
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
@@ -315,7 +316,6 @@
                 return chunks;
             };
 
-            // 2. Thêm hàm chuyển đổi Base64 sang nhị phân
             const base64ToUint8Array = (base64) => {
                 const binaryString = window.atob(base64);
                 const bytes = new Uint8Array(binaryString.length);
@@ -325,60 +325,30 @@
                 return bytes;
             };
 
-            // 3. Thêm hàm bọc màng Header WAV cho file âm thanh chuẩn
-            const createWavHeaderAndMerge = (pcmData, sampleRate) => {
-                const buffer = new ArrayBuffer(44 + pcmData.length);
-                const view = new DataView(buffer);
-                const writeString = (view, offset, string) => {
-                    for (let i = 0; i < string.length; i++) { view.setUint8(offset + i, string.charCodeAt(i)); }
-                };
-                writeString(view, 0, 'RIFF');
-                view.setUint32(4, 36 + pcmData.length, true);
-                writeString(view, 8, 'WAVE');
-                writeString(view, 12, 'fmt ');
-                view.setUint32(16, 16, true);
-                view.setUint16(20, 1, true); // PCM
-                view.setUint16(22, 1, true); // Mono (1 kênh)
-                view.setUint32(24, sampleRate, true);
-                view.setUint32(28, sampleRate * 2, true); // Byte rate
-                view.setUint16(32, 2, true); // Block align
-                view.setUint16(34, 16, true); // Bits per sample
-                writeString(view, 36, 'data');
-                view.setUint32(40, pcmData.length, true);
+            // HÀM KHÔI PHỤC: Chuyển đổi bộ đệm byte PCM thô thành định dạng MP3 chuẩn
+            const pcmToMp3 = (pcmUint8Array, sampleRate) => {
+                // Kiểm tra cắt biên để đảm bảo dữ liệu chẵn byte khi chuyển đổi sang Int16
+                const validByteLength = pcmUint8Array.byteLength - (pcmUint8Array.byteLength % 2);
+                const int16Samples = new Int16Array(pcmUint8Array.buffer, 0, validByteLength / 2);
                 
-                // Copy sóng âm thô nguyên khối vào file chuẩn
-                new Uint8Array(buffer, 44).set(pcmData);
-                return buffer;
+                const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128); // Kênh đơn (Mono), 128kbps
+                const mp3Data = [];
+                const sampleBlockSize = 1152; // Kích thước khối mẫu tiêu chuẩn của MP3
+                
+                for (let i = 0; i < int16Samples.length; i += sampleBlockSize) {
+                    const sampleChunk = int16Samples.subarray(i, i + sampleBlockSize);
+                    const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
+                    if (mp3buf.length > 0) {
+                        mp3Data.push(new Int8Array(mp3buf));
+                    }
+                }
+                const mp3buf = mp3encoder.flush();
+                if (mp3buf.length > 0) {
+                    mp3Data.push(new Int8Array(mp3buf));
+                }
+                return new Blob(mp3Data, { type: 'audio/mp3' });
             };
 
-            // 4. Giữ nguyên hàm gọi API
-            const callSpeechAPI = async (text, voiceId, rate) => { 
-                const maxRetries = 3; 
-                const retryDelay = 2000; 
-                for (let i = 0; i < maxRetries; i++) { 
-                    try { 
-                        const response = await fetch('/api/generate-speech', { 
-                            method: 'POST', 
-                            headers: { 'Content-Type': 'application/json' }, 
-                            body: JSON.stringify({ text, voice: voiceId, rate, model: modelSelect.value }) 
-                        });
-                        const responseText = await response.text(); 
-                        if (!response.ok) { 
-                            try { const errorJson = JSON.parse(responseText); throw new Error(errorJson.error || responseText); } 
-                            catch (e) { throw new Error(responseText || `Lỗi từ server: ${response.status} ${response.statusText}`); } 
-                        } 
-                        if (!responseText) { throw new Error("EMPTY_RESPONSE"); } 
-                        try { return JSON.parse(responseText); } 
-                        catch (e) { throw new Error("Phản hồi thành công nhưng không phải định dạng JSON hợp lệ."); } 
-                    } catch (error) { 
-                        if (error.message === "EMPTY_RESPONSE" && i < maxRetries - 1) { 
-                            await new Promise(resolve => setTimeout(resolve, retryDelay)); 
-                        } else { throw error; } 
-                    } 
-                } 
-            };
-
-            // 5. Cập nhật hàm tạo âm thanh xử lý chia nhỏ file
             const handleGenerateSpeech = async () => { 
                 const text = textInput.value.trim(); 
                 if (!text) { showError("Vui lòng nhập văn bản."); return; } 
@@ -392,7 +362,7 @@
                     let finalPcmData = new Uint8Array(0);
                     let finalSampleRate = 24000;
             
-                    // Gửi lần lượt từng đoạn lên Server để tránh Timeout
+                    // Gửi tuần tự các đoạn nhỏ lên server để triệt tiêu lỗi Timeout 504
                     for (let i = 0; i < textChunks.length; i++) {
                         generateLoader.title = `Đang xử lý ${i + 1}/${textChunks.length}...`;
                         
@@ -402,7 +372,7 @@
                             finalSampleRate = response.sampleRate; 
                             const pcmBytes = base64ToUint8Array(response.audioContent);
                             
-                            // Nối trực tiếp bộ đệm âm thanh rất mượt, không gây vỡ tiếng
+                            // Ghép mảng nhị phân thô
                             const merged = new Uint8Array(finalPcmData.length + pcmBytes.length);
                             merged.set(finalPcmData);
                             merged.set(pcmBytes, finalPcmData.length);
@@ -410,9 +380,8 @@
                         }
                     }
             
-                    // Bọc Header WAV vào cục âm thanh tổng cuối cùng
-                    const wavBuffer = createWavHeaderAndMerge(finalPcmData, finalSampleRate);
-                    generatedAudioBlob = new Blob([wavBuffer], { type: 'audio/wav' }); 
+                    // ĐÃ KHÔI PHỤC: Ép nén dải sóng âm PCM tổng thành tệp MP3 nguyên khối
+                    generatedAudioBlob = pcmToMp3(finalPcmData, finalSampleRate);
                     
                     const audioUrl = URL.createObjectURL(generatedAudioBlob); 
                     playerContainer.style.display = 'flex'; 
@@ -442,8 +411,8 @@
                 const now = new Date();
                 const timeString = `${now.getHours()}h${now.getMinutes()}p${now.getSeconds()}s`;
                 
-                // Định dạng tải về nay đã chuẩn hóa thành .wav không nén
-                a.download = `Audio_TTS_${timeString}.wav`;
+                // ĐÃ CHUYỂN ĐUÔI FILE TẢI VỀ VỀ LẠI .MP3
+                a.download = `Audio_TTS_${timeString}.mp3`;
                 
                 document.body.appendChild(a);
                 a.click();
