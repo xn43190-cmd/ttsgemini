@@ -15,7 +15,6 @@
     </script>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
@@ -198,7 +197,6 @@
             ];
             let selectedVoiceId = voices[0].id;
             let generatedAudioBlob = null;
-            let currentAudioFileId = null;
             let currentSpeed = 1.0;
 
             const textInput = document.getElementById('text-input');
@@ -228,22 +226,6 @@
             const optimizeIcon = document.getElementById('optimize-icon');
             const optimizeLoader = document.getElementById('optimize-loader');
 
-            const base64ToArrayBuffer = (base64) => { const binaryString = window.atob(base64); const len = binaryString.length; const bytes = new Uint8Array(len); for (let i = 0; i < len; i++) { bytes[i] = binaryString.charCodeAt(i); } return bytes.buffer; };
-            const pcmToWav = (pcmData, sampleRate) => { const numChannels = 1, bitsPerSample = 16; const blockAlign = (numChannels * bitsPerSample) / 8; const byteRate = sampleRate * blockAlign; const dataSize = pcmData.length * (bitsPerSample / 8); const buffer = new ArrayBuffer(44 + dataSize); const view = new DataView(buffer); const writeString = (view, offset, string) => { for (let i = 0; i < string.length; i++) { view.setUint8(offset + i, string.charCodeAt(i)); } }; writeString(view, 0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeString(view, 8, 'WAVE'); writeString(view, 12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true); view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true); view.setUint16(34, bitsPerSample, true); writeString(view, 36, 'data'); view.setUint32(40, dataSize, true); let offset = 44; for (let i = 0; i < pcmData.length; i++, offset += 2) { view.setInt16(offset, pcmData[i], true); } return new Blob([view], { type: 'audio/wav' }); };
-            
-            const pcmToMp3 = (pcmData, sampleRate) => {
-                const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128); 
-                const mp3Data = [];
-                const sampleBlockSize = 1152; 
-                for (let i = 0; i < pcmData.length; i += sampleBlockSize) {
-                    const sampleChunk = pcmData.subarray(i, i + sampleBlockSize);
-                    const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
-                    if (mp3buf.length > 0) mp3Data.push(new Int8Array(mp3buf));
-                }
-                const mp3buf = mp3encoder.flush();
-                if (mp3buf.length > 0) mp3Data.push(new Int8Array(mp3buf));
-                return new Blob(mp3Data, { type: 'audio/mp3' });
-            };
             // Tải danh sách Model từ Server
             const loadModels = async () => {
                 try {
@@ -255,7 +237,6 @@
                             const option = document.createElement('option');
                             option.value = model;
                             option.textContent = model;
-                            // Ưu tiên chọn model chuyên TTS nếu có trong Sheet
                             if (model.includes('tts')) option.selected = true;
                             modelSelect.appendChild(option);
                         });
@@ -266,7 +247,7 @@
                     modelSelect.innerHTML = '<option value="gemini-2.5-flash-preview-tts">Lỗi tải, dùng mặc định</option>';
                 }
             };
-            loadModels(); // Kích hoạt ngay khi tải trang
+            loadModels(); 
             
             const showError = (message) => { 
                 if (message) { 
@@ -324,7 +305,6 @@
                         const response = await fetch('/api/generate-speech', { 
                             method: 'POST', 
                             headers: { 'Content-Type': 'application/json' }, 
-                            // Thêm model: modelSelect.value vào body
                             body: JSON.stringify({ text, voice: voiceId, rate, model: modelSelect.value }) 
                         });
                         const responseText = await response.text(); 
@@ -349,85 +329,41 @@
                 showError(null); toggleLoading(true); 
                 
                 playerContainer.style.display = 'none'; 
-                generatedAudioBlob = null; currentAudioFileId = null;
+                generatedAudioBlob = null;
             
                 try { 
-                    // 1. Hàm tự động chia nhỏ văn bản (tránh cắt giữa chừng câu)
-                    const splitTextIntoChunks = (text, maxLength = 1500) => {
-                        const sentences = text.replace(/([.!?\n]+)/g, "$1|").split("|");
-                        const chunks = [];
-                        let currentChunk = '';
-                        for (const sentence of sentences) {
-                            if (!sentence.trim()) continue;
-                            if ((currentChunk + sentence).length > maxLength && currentChunk.length > 0) {
-                                chunks.push(currentChunk.trim());
-                                currentChunk = sentence;
-                            } else {
-                                currentChunk += sentence;
-                            }
-                        }
-                        if (currentChunk.trim()) chunks.push(currentChunk.trim());
-                        return chunks;
-                    };
-            
-                    const textChunks = splitTextIntoChunks(text);
-                    let finalPcmData = new Int16Array(0);
-                    let finalSampleRate = 24000;
-            
-                    // 2. Gửi lần lượt từng đoạn nhỏ để tránh bị ngắt kết nối (Timeout)
-                    for (let i = 0; i < textChunks.length; i++) {
-                        // Có thể dùng cái này để hiển thị tiến trình trên icon xoay vòng
-                        generateLoader.title = `Đang xử lý ${i + 1}/${textChunks.length}`;
-                        
-                        const { audioContent, sampleRate, fileId } = await callSpeechAPI(textChunks[i], selectedVoiceId, currentSpeed); 
-                        
-                        if (audioContent && sampleRate) {
-                            finalSampleRate = sampleRate; 
-                            currentAudioFileId = fileId; // Lưu tạm fileId cuối cùng
-            
-                            const pcmBuffer = base64ToArrayBuffer(audioContent); 
-                            const pcmBytes = new Uint8Array(pcmBuffer);
-                            
-                            let rawPcm;
-                            // Kiểm tra nếu file trả về là WAV (bắt đầu bằng RIFF), loại bỏ 44 byte header để ghép nối không bị kêu "tạch"
-                            if (pcmBytes.length > 44 && pcmBytes[0] === 0x52 && pcmBytes[1] === 0x49 && pcmBytes[2] === 0x46 && pcmBytes[3] === 0x46) {
-                                const byteLength = pcmBuffer.byteLength - 44;
-                                const validLength = byteLength % 2 === 0 ? byteLength : byteLength - 1;
-                                rawPcm = new Int16Array(pcmBuffer, 44, validLength / 2);
-                            } else {
-                                rawPcm = new Int16Array(pcmBuffer);
-                            }
-            
-                            // Gộp đoạn âm thanh mới vào mảng dữ liệu tổng
-                            const merged = new Int16Array(finalPcmData.length + rawPcm.length);
-                            merged.set(finalPcmData);
-                            merged.set(rawPcm, finalPcmData.length);
-                            finalPcmData = merged;
-                        }
-                    }
-            
-                    // 3. Đóng gói toàn bộ thành MP3 và phát nhạc
-                    generatedAudioBlob = pcmToMp3(finalPcmData, finalSampleRate); 
-                    const audioUrl = URL.createObjectURL(generatedAudioBlob); 
+                    generateLoader.title = "Đang xử lý âm thanh trên Server...";
                     
-                    playerContainer.style.display = 'flex'; 
-                    audioPlayer.src = audioUrl; 
-                    audioPlayer.play(); 
-                    generateLoader.title = "";
+                    // Chỉ gọi API 1 lần duy nhất với toàn bộ văn bản
+                    const response = await callSpeechAPI(text, selectedVoiceId, currentSpeed); 
+                    
+                    if (response && response.audioContent) {
+                        // Chuyển chuỗi Base64 thành Blob WAV
+                        const byteCharacters = atob(response.audioContent);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        generatedAudioBlob = new Blob([byteArray], { type: 'audio/wav' }); 
+                        
+                        const audioUrl = URL.createObjectURL(generatedAudioBlob); 
+                        
+                        playerContainer.style.display = 'flex'; 
+                        audioPlayer.src = audioUrl; 
+                        audioPlayer.play(); 
+                    }
             
                 } catch (error) { 
                     showError(error.message); 
-                    generateLoader.title = "";
                 } 
                 finally { 
+                    generateLoader.title = "";
                     toggleLoading(false); 
                 } 
             };
 
             const handleDownload = () => {
-                const iosGuide = document.getElementById('ios-guide');
-                if (iosGuide) iosGuide.classList.add('hidden');
-                
                 if (!generatedAudioBlob) {
                     alert("Chưa có tệp âm thanh để tải. Vui lòng tạo giọng đọc trước.");
                     return;
@@ -441,7 +377,8 @@
                 const now = new Date();
                 const timeString = `${now.getHours()}h${now.getMinutes()}p${now.getSeconds()}s`;
                 
-                a.download = `Audio_TTS_${timeString}.mp3`;
+                // Định dạng tải về nay đã chuẩn hóa thành .wav không nén
+                a.download = `Audio_TTS_${timeString}.wav`;
                 
                 document.body.appendChild(a);
                 a.click();
@@ -460,7 +397,6 @@
                     const response = await fetch('/api/optimize-text', { 
                         method: 'POST', 
                         headers: { 'Content-Type': 'application/json' }, 
-                        // CHỈ CẦN GỬI text, KHÔNG GỬI model NỮA
                         body: JSON.stringify({ text }) 
                     });
                     const data = await response.json();
