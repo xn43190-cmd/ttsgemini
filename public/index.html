@@ -298,7 +298,7 @@
                 }); 
             };
 
-            // 1. Thêm lại hàm cắt đoạn thông minh
+            // 1. Hàm cắt đoạn thông minh
             const splitTextIntoChunks = (text, maxLength = 800) => {
                 const paragraphs = text.split(/\n+/);
                 const chunks = [];
@@ -316,6 +316,7 @@
                 return chunks;
             };
 
+            // 2. Hàm chuyển Base64 sang nhị phân
             const base64ToUint8Array = (base64) => {
                 const binaryString = window.atob(base64);
                 const bytes = new Uint8Array(binaryString.length);
@@ -325,15 +326,14 @@
                 return bytes;
             };
 
-            // HÀM KHÔI PHỤC: Chuyển đổi bộ đệm byte PCM thô thành định dạng MP3 chuẩn
+            // 3. Hàm nén MP3
             const pcmToMp3 = (pcmUint8Array, sampleRate) => {
-                // Kiểm tra cắt biên để đảm bảo dữ liệu chẵn byte khi chuyển đổi sang Int16
                 const validByteLength = pcmUint8Array.byteLength - (pcmUint8Array.byteLength % 2);
                 const int16Samples = new Int16Array(pcmUint8Array.buffer, 0, validByteLength / 2);
                 
-                const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128); // Kênh đơn (Mono), 128kbps
+                const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128); 
                 const mp3Data = [];
-                const sampleBlockSize = 1152; // Kích thước khối mẫu tiêu chuẩn của MP3
+                const sampleBlockSize = 1152; 
                 
                 for (let i = 0; i < int16Samples.length; i += sampleBlockSize) {
                     const sampleChunk = int16Samples.subarray(i, i + sampleBlockSize);
@@ -349,6 +349,34 @@
                 return new Blob(mp3Data, { type: 'audio/mp3' });
             };
 
+            // 4. Hàm GỌI API BỊ THIẾU NAY ĐÃ ĐƯỢC THÊM LẠI
+            const callSpeechAPI = async (text, voiceId, rate) => { 
+                const maxRetries = 3; 
+                const retryDelay = 2000; 
+                for (let i = 0; i < maxRetries; i++) { 
+                    try { 
+                        const response = await fetch('/api/generate-speech', { 
+                            method: 'POST', 
+                            headers: { 'Content-Type': 'application/json' }, 
+                            body: JSON.stringify({ text, voice: voiceId, rate, model: modelSelect.value }) 
+                        });
+                        const responseText = await response.text(); 
+                        if (!response.ok) { 
+                            try { const errorJson = JSON.parse(responseText); throw new Error(errorJson.error || responseText); } 
+                            catch (e) { throw new Error(responseText || `Lỗi từ server: ${response.status} ${response.statusText}`); } 
+                        } 
+                        if (!responseText) { throw new Error("EMPTY_RESPONSE"); } 
+                        try { return JSON.parse(responseText); } 
+                        catch (e) { throw new Error("Phản hồi thành công nhưng không phải định dạng JSON hợp lệ."); } 
+                    } catch (error) { 
+                        if (error.message === "EMPTY_RESPONSE" && i < maxRetries - 1) { 
+                            await new Promise(resolve => setTimeout(resolve, retryDelay)); 
+                        } else { throw error; } 
+                    } 
+                } 
+            };
+
+            // 5. Hàm xử lý ghép và phát âm thanh
             const handleGenerateSpeech = async () => { 
                 const text = textInput.value.trim(); 
                 if (!text) { showError("Vui lòng nhập văn bản."); return; } 
@@ -362,7 +390,6 @@
                     let finalPcmData = new Uint8Array(0);
                     let finalSampleRate = 24000;
             
-                    // Gửi tuần tự các đoạn nhỏ lên server để triệt tiêu lỗi Timeout 504
                     for (let i = 0; i < textChunks.length; i++) {
                         generateLoader.title = `Đang xử lý ${i + 1}/${textChunks.length}...`;
                         
@@ -372,7 +399,6 @@
                             finalSampleRate = response.sampleRate; 
                             const pcmBytes = base64ToUint8Array(response.audioContent);
                             
-                            // Ghép mảng nhị phân thô
                             const merged = new Uint8Array(finalPcmData.length + pcmBytes.length);
                             merged.set(finalPcmData);
                             merged.set(pcmBytes, finalPcmData.length);
@@ -380,7 +406,6 @@
                         }
                     }
             
-                    // ĐÃ KHÔI PHỤC: Ép nén dải sóng âm PCM tổng thành tệp MP3 nguyên khối
                     generatedAudioBlob = pcmToMp3(finalPcmData, finalSampleRate);
                     
                     const audioUrl = URL.createObjectURL(generatedAudioBlob); 
@@ -397,6 +422,7 @@
                 } 
             };
 
+            // 6. Hàm Tải xuống MP3
             const handleDownload = () => {
                 if (!generatedAudioBlob) {
                     alert("Chưa có tệp âm thanh để tải. Vui lòng tạo giọng đọc trước.");
@@ -411,7 +437,6 @@
                 const now = new Date();
                 const timeString = `${now.getHours()}h${now.getMinutes()}p${now.getSeconds()}s`;
                 
-                // ĐÃ CHUYỂN ĐUÔI FILE TẢI VỀ VỀ LẠI .MP3
                 a.download = `Audio_TTS_${timeString}.mp3`;
                 
                 document.body.appendChild(a);
