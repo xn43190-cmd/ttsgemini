@@ -175,12 +175,11 @@ app.post('/api/generate-speech', requireLogin, async (req, res) => {
 
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
         
-        // CÂU LỆNH MỒI: Giữ tĩnh ngữ khí, nhịp điệu cho Radio Phật pháp
-        const promptForTTS = `Generate Text-To-Speech for the following text. You are a narrator for a Buddhist radio broadcast. Read the text in a highly consistent, calm, peaceful, steady, and soothing tone. Maintain an even volume and a slow, regular rhythm throughout. Do not generate text responses, do not read these instructions, just strictly narrate this transcript:\n\n${text}`;
+        // CÂU LỆNH MỒI ĐÃ ĐIỀU CHỈNH: Trả tốc độ về mặc định nhưng giữ chặt độ ổn định ngữ khí
+        const promptForTTS = `Generate Text-To-Speech for the following text. You are a narrator for a Buddhist radio broadcast. Read the text in a highly consistent, calm, peaceful, and soothing tone. Maintain an even volume and a natural, normal pace with a regular rhythm throughout. Do not generate text responses, do not read these instructions, just strictly narrate this transcript:\n\n${text}`;
         
         const payload = {
             contents: [{ role: "user", parts: [{ text: promptForTTS }] }],
-            // TẮT BỘ LỌC AN TOÀN ĐỂ KHÔNG BỊ CHẶN TỪ KHÓA PHẬT GIÁO
             safetySettings: [
                 { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
                 { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
@@ -194,11 +193,9 @@ app.post('/api/generate-speech', requireLogin, async (req, res) => {
             model: targetModel
         };
         
-        // GỌI API GOOGLE
         const apiResponse = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const result = await apiResponse.json();
         
-        // LẤY DỮ LIỆU ÂM THANH
         const audioPart = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData && p.inlineData.mimeType?.startsWith('audio/'));
         
         if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
@@ -213,7 +210,6 @@ app.post('/api/generate-speech', requireLogin, async (req, res) => {
         const rateMatch = mimeType.match(/rate=(\d+)/);
         const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
         
-        // BÓC TÁCH HEADER WAV ĐỂ CHỐNG TIẾNG TẠCH TẠCH
         const chunkBuffer = Buffer.from(audioData, 'base64');
         let rawPcm = chunkBuffer;
         
@@ -221,7 +217,6 @@ app.post('/api/generate-speech', requireLogin, async (req, res) => {
             rawPcm = chunkBuffer.subarray(44);
         }
         
-        // TRẢ VỀ CHO CLIENT
         res.status(200).json({ 
             audioContent: rawPcm.toString('base64'), 
             sampleRate: sampleRate 
