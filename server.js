@@ -195,20 +195,13 @@ app.post('/api/generate-speech', requireLogin, async (req, res) => {
         };
 
         const audioPart = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData && p.inlineData.mimeType?.startsWith('audio/'));
+        
         if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
             // In chi tiết lỗi ra màn hình Terminal (Server Box) để bạn dễ kiểm tra
             console.error("====== LỖI TỪ GOOGLE API ======");
-            console.error("Đoạn văn bị lỗi:", chunk);
+            console.error("Đoạn văn bị lỗi:", text);
             console.error("Lý do từ chối:", JSON.stringify(result, null, 2));
             throw new Error("Một đoạn văn bản bị từ chối (Khả năng do bộ lọc an toàn). Vui lòng kiểm tra log trên máy chủ.");
-        }
-        
-        const apiResponse = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        const result = await apiResponse.json();
-        
-        const audioPart = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData && p.inlineData.mimeType?.startsWith('audio/'));
-        if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
-            throw new Error("Một đoạn văn bản bị từ chối hoặc model không hỗ trợ.");
         }
         
         const audioData = audioPart.inlineData.data;
