@@ -93,21 +93,28 @@
             </div>
         </div>
 
-        <div class="flex-grow w-full mx-auto bg-white rounded-[2rem] md:rounded-3xl shadow-paper p-2 md:p-4 transition-all duration-300 flex flex-col overflow-hidden">
-            <div class="relative w-full flex-grow flex flex-col">
-                <textarea id="text-input" maxlength="15000" 
-                    class="w-full flex-grow overflow-y-auto p-4 md:p-6 pr-12 md:pr-14 bg-paper text-ink border-transparent rounded-2xl md:rounded-[1.25rem] focus:ring-2 focus:ring-clay/30 focus:border-transparent transition-all duration-300 resize-none outline-none text-[15px] md:text-base leading-relaxed" 
-                    placeholder="Nhập văn bản của bạn tại đây..."></textarea>
-                
-                <button id="clear-text-btn" title="Xóa toàn bộ văn bản" 
-                    class="absolute top-3 right-3 md:top-4 md:right-4 text-ink/30 hover:text-clay p-2 rounded-xl transition-all duration-300 hover:-translate-y-1 bg-white/50 backdrop-blur-sm">
-                    <i class="fa-solid fa-trash-can text-lg"></i>
-                </button>
-                
-                <div id="char-counter" class="absolute bottom-3 right-3 md:bottom-4 md:right-5 font-mono text-xs md:text-sm text-ink/50 bg-white/80 px-2 py-1 rounded-lg backdrop-blur-sm pointer-events-none">
-                    0 / 15000
+        <div class="flex-grow w-full mx-auto bg-white rounded-[2rem] md:rounded-3xl shadow-paper p-4 transition-all duration-300 flex flex-col overflow-hidden">
+            <div class="flex flex-wrap justify-between items-center mb-4 gap-2 border-b border-paper pb-3">
+                <div class="flex gap-2">
+                    <button id="add-block-btn" class="text-xs md:text-sm bg-clay text-white px-3 md:px-4 py-2 rounded-xl hover:shadow-float hover:-translate-y-0.5 transition-all flex items-center">
+                        <i class="fa-solid fa-plus mr-1.5"></i> Thêm đoạn
+                    </button>
+                    <button id="auto-split-btn" class="text-xs md:text-sm bg-paper text-ink border border-clay/20 px-3 md:px-4 py-2 rounded-xl hover:bg-clay hover:text-white transition-all flex items-center">
+                        <i class="fa-solid fa-scissors mr-1.5"></i> Cắt tự động
+                    </button>
+                </div>
+                <div class="flex gap-3 items-center">
+                    <button id="clear-text-btn" title="Xóa toàn bộ văn bản" class="text-ink/40 hover:text-red-500 p-2 rounded-xl transition-all hover:bg-red-50">
+                        <i class="fa-solid fa-trash-can text-lg"></i> Xóa hết
+                    </button>
+                    <div id="char-counter" class="font-mono text-xs md:text-sm text-ink/50 bg-paper px-2 py-1 rounded-lg">
+                        0 / 15000
+                    </div>
                 </div>
             </div>
+
+            <div id="blocks-container" class="w-full flex-grow overflow-y-auto pr-2 space-y-3 pb-4">
+                </div>
         </div>
     </main>
 
@@ -124,12 +131,12 @@
 
             <div class="flex items-center justify-between md:justify-center w-full md:w-auto gap-1 md:gap-4 px-1">
                 
-                <button id="open-voice-modal-btn" class="flex flex-col items-center justify-center py-2 px-2 md:px-3 rounded-2xl hover:bg-paper text-ink transition-all duration-300 min-w-[64px] md:min-w-[72px]">
+                <button id="open-voice-modal-btn" title="Giọng mặc định cho đoạn mới" class="flex flex-col items-center justify-center py-2 px-2 md:px-3 rounded-2xl hover:bg-paper text-ink transition-all duration-300 min-w-[64px] md:min-w-[72px]">
                     <i class="fa-solid fa-user-pen text-lg md:text-xl mb-1 text-clay"></i>
-                    <span id="selected-voice-name" class="text-[10px] md:text-[11px] font-semibold uppercase tracking-wider">Kore</span>
+                    <span id="selected-voice-name" class="text-[9px] md:text-[10px] font-semibold uppercase tracking-wider text-center leading-tight">Mặc định:<br>Kore</span>
                 </button>
 
-                <button id="optimize-button" title="Tối ưu hóa văn bản" 
+                <button id="optimize-button" title="Tối ưu hóa văn bản (Sẽ gộp tất cả đoạn)" 
                     class="flex items-center justify-center h-10 w-10 md:h-12 md:w-12 bg-paper text-ink rounded-full shadow-sm hover:bg-clay hover:text-white transition-all duration-300 hover:-translate-y-1">
                     <i id="optimize-icon" class="fa-solid fa-magic-wand-sparkles text-sm md:text-base"></i>
                     <div id="optimize-loader" class="loader hidden !w-5 !h-5 border-2"></div>
@@ -152,7 +159,7 @@
     <div id="voice-modal" class="fixed inset-0 bg-ink/40 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50 transition-all duration-300">
         <div class="bg-white rounded-3xl shadow-float w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden">
             <div class="flex items-center justify-between p-5 border-b border-paper">
-                <h2 class="text-lg font-bold text-ink">Chọn giọng đọc</h2>
+                <h2 class="text-lg font-bold text-ink">Chọn giọng đọc mặc định</h2>
                 <button id="close-voice-modal-btn" class="p-2 rounded-full text-ink/50 hover:text-clay hover:bg-paper transition-all duration-300">
                     <i class="fa-solid fa-xmark text-xl"></i>
                 </button>
@@ -164,7 +171,7 @@
     <div id="speed-modal" class="fixed inset-0 bg-ink/40 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50 transition-all duration-300">
         <div class="bg-white rounded-3xl shadow-float w-full max-w-sm overflow-hidden">
             <div class="flex items-center justify-between p-5 border-b border-paper">
-                <h2 class="text-lg font-bold text-ink">Tốc độ đọc</h2>
+                <h2 class="text-lg font-bold text-ink">Tốc độ đọc chung</h2>
                 <span id="speed-modal-value" class="font-mono font-bold text-clay bg-paper px-3 py-1 rounded-lg">1.0x</span>
             </div>
             <div class="p-8">
@@ -196,11 +203,15 @@
                 { id: 'Aoede', name: 'Aoede', description: 'Giọng nữ, nhẹ nhàng', gender: 'female' },
                 { id: 'Schedar', name: 'Schedar', description: 'Giọng nam, điềm đạm', gender: 'male' }
             ];
-            let selectedVoiceId = voices[0].id;
+            let defaultVoiceId = voices[0].id;
             let generatedAudioBlob = null;
             let currentSpeed = 1.0;
 
-            const textInput = document.getElementById('text-input');
+            const blocksContainer = document.getElementById('blocks-container');
+            const addBlockBtn = document.getElementById('add-block-btn');
+            const autoSplitBtn = document.getElementById('auto-split-btn');
+            const clearTextBtn = document.getElementById('clear-text-btn');
+            
             const modelSelect = document.getElementById('model-select');
             const charCounter = document.getElementById('char-counter');
             const generateButton = document.getElementById('generate-button');
@@ -209,7 +220,6 @@
             const downloadBtn = document.getElementById('download-btn');
             const audioPlayer = document.getElementById('audio-player');
             const playerContainer = document.getElementById('player-container');
-            const clearTextBtn = document.getElementById('clear-text-btn');
             const voiceModal = document.getElementById('voice-modal');
             const openVoiceModalBtn = document.getElementById('open-voice-modal-btn');
             const closeVoiceModalBtn = document.getElementById('close-voice-modal-btn');
@@ -227,7 +237,118 @@
             const optimizeIcon = document.getElementById('optimize-icon');
             const optimizeLoader = document.getElementById('optimize-loader');
 
-            // Tải danh sách Model từ Server
+            // --- LẤY TOÀN BỘ VĂN BẢN TỪ CÁC KHỐI ---
+            const getAllText = () => {
+                const textareas = document.querySelectorAll('.block-text');
+                return Array.from(textareas).map(ta => ta.value.trim()).filter(t => t).join('\n\n');
+            };
+
+            // --- ĐẾM SỐ KÝ TỰ TỔNG ---
+            const updateCharCounter = () => { 
+                const textareas = document.querySelectorAll('.block-text');
+                let count = Array.from(textareas).reduce((acc, ta) => acc + ta.value.length, 0);
+                charCounter.textContent = `${count} / ${MAX_CHARS}`; 
+                if (count >= MAX_CHARS) { charCounter.classList.add('text-clay', 'font-bold'); } 
+                else { charCounter.classList.remove('text-clay', 'font-bold'); } 
+            };
+
+            // --- QUẢN LÝ KHỐI HỘI THOẠI (BLOCKS) ---
+            const getVoiceOptionsHTML = (selectedVoiceId) => {
+                return voices.map(v => 
+                    `<option value="${v.id}" ${v.id === selectedVoiceId ? 'selected' : ''}>
+                        ${v.name} (${v.gender === 'male' ? 'Nam' : 'Nữ'})
+                    </option>`
+                ).join('');
+            };
+
+            const createBlock = (text = '', voiceId = defaultVoiceId) => {
+                const block = document.createElement('div');
+                block.className = 'tts-block relative bg-paper p-3 md:p-4 rounded-[1.25rem] border border-transparent focus-within:border-clay/40 transition-all shadow-sm';
+                block.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <select class="block-voice bg-white text-xs border border-clay/20 rounded-lg px-2 py-1.5 outline-none text-ink font-medium shadow-sm cursor-pointer hover:border-clay/50 transition-all">
+                            ${getVoiceOptionsHTML(voiceId)}
+                        </select>
+                        <button class="remove-block-btn text-ink/30 hover:text-red-500 hover:bg-white p-1.5 rounded-lg transition-all" title="Xóa đoạn này">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                    <textarea class="block-text w-full bg-transparent text-ink outline-none resize-none text-[15px] md:text-base leading-relaxed min-h-[60px]" placeholder="Nhập văn bản cho đoạn này..."></textarea>
+                `;
+                
+                const textarea = block.querySelector('.block-text');
+                textarea.value = text;
+                
+                // Tự động thay đổi chiều cao
+                const resizeTextarea = () => {
+                    textarea.style.height = 'auto';
+                    textarea.style.height = (textarea.scrollHeight) + 'px';
+                };
+                textarea.addEventListener('input', () => {
+                    resizeTextarea();
+                    updateCharCounter();
+                });
+                
+                // Xóa khối
+                block.querySelector('.remove-block-btn').addEventListener('click', () => {
+                    if (document.querySelectorAll('.tts-block').length > 1) {
+                        block.remove();
+                        updateCharCounter();
+                    } else {
+                        textarea.value = '';
+                        updateCharCounter();
+                    }
+                });
+
+                blocksContainer.appendChild(block);
+                setTimeout(resizeTextarea, 0); // Kích hoạt resize ban đầu
+            };
+
+            // Hàm tự động chia đoạn
+            const doAutoSplit = (textToSplit) => {
+                if (!textToSplit) return;
+                
+                // Tách theo dấu chấm, chấm hỏi, chấm than, hoặc xuống dòng
+                const chunks = textToSplit.match(/[^.!?\n]+[.!?\n]+/g) || [textToSplit];
+                
+                blocksContainer.innerHTML = ''; // Xóa sạch khối cũ
+                
+                let voiceNam = voices.find(v => v.gender === 'male').id;
+                let voiceNu = voices.find(v => v.gender === 'female').id;
+
+                chunks.forEach((chunk, index) => {
+                    const text = chunk.trim();
+                    if (text) {
+                        // Luân phiên giọng nam/nữ
+                        const isEven = index % 2 === 0;
+                        const blockVoice = isEven ? voiceNu : voiceNam;
+                        createBlock(text, blockVoice);
+                    }
+                });
+                updateCharCounter();
+            };
+
+            addBlockBtn.addEventListener('click', () => {
+                createBlock();
+                blocksContainer.scrollTop = blocksContainer.scrollHeight;
+            });
+
+            autoSplitBtn.addEventListener('click', () => {
+                const fullText = getAllText();
+                if (!fullText) {
+                    showError("Vui lòng nhập văn bản vào để chia đoạn.");
+                    return;
+                }
+                doAutoSplit(fullText);
+            });
+
+            clearTextBtn.addEventListener('click', () => {
+                blocksContainer.innerHTML = '';
+                createBlock();
+                updateCharCounter();
+            });
+
+            // --- CÁC HÀM TIỆN ÍCH ---
             const loadModels = async () => {
                 try {
                     const res = await fetch('/api/models');
@@ -279,17 +400,10 @@
                 } 
             };
             
-            const updateCharCounter = () => { 
-                const count = textInput.value.length; 
-                charCounter.textContent = `${count} / ${MAX_CHARS}`; 
-                if (count >= MAX_CHARS) { charCounter.classList.add('text-clay', 'font-bold'); } 
-                else { charCounter.classList.remove('text-clay', 'font-bold'); } 
-            };
-            
             const createVoiceList = () => { 
                 voiceListContainer.innerHTML = ''; 
                 voices.forEach(voice => { 
-                    const isSelected = voice.id === selectedVoiceId; 
+                    const isSelected = voice.id === defaultVoiceId; 
                     const voiceElement = document.createElement('div'); 
                     voiceElement.className = `flex items-center justify-between p-4 rounded-2xl cursor-pointer transition-all duration-300 border border-transparent ${isSelected ? 'bg-paper border-clay shadow-sm ring-1 ring-clay/20' : 'bg-white hover:bg-paper'}`; 
                     voiceElement.dataset.voiceId = voice.id; 
@@ -298,7 +412,7 @@
                 }); 
             };
 
-            // 1. Hàm cắt đoạn thông minh
+            // 1. Hàm cắt đoạn nội bộ (Đề phòng 1 khối quá dài > 800 ký tự)
             const splitTextIntoChunks = (text, maxLength = 800) => {
                 const paragraphs = text.split(/\n+/);
                 const chunks = [];
@@ -349,7 +463,7 @@
                 return new Blob(mp3Data, { type: 'audio/mp3' });
             };
 
-            // 4. Hàm GỌI API BỊ THIẾU NAY ĐÃ ĐƯỢC THÊM LẠI
+            // 4. Hàm Gọi API Audio
             const callSpeechAPI = async (text, voiceId, rate) => { 
                 const maxRetries = 3; 
                 const retryDelay = 2000; 
@@ -376,33 +490,42 @@
                 } 
             };
 
-            // 5. Hàm xử lý ghép và phát âm thanh
+            // 5. Hàm xử lý duyệt qua toàn bộ các KHỐI
             const handleGenerateSpeech = async () => { 
-                const text = textInput.value.trim(); 
-                if (!text) { showError("Vui lòng nhập văn bản."); return; } 
-                showError(null); toggleLoading(true); 
+                const blockElements = document.querySelectorAll('.tts-block');
+                const tasks = Array.from(blockElements).map(block => ({
+                    text: block.querySelector('.block-text').value.trim(),
+                    voiceId: block.querySelector('.block-voice').value
+                })).filter(task => task.text !== '');
+
+                if (tasks.length === 0) { showError("Vui lòng nhập văn bản."); return; } 
                 
+                showError(null); toggleLoading(true); 
                 playerContainer.style.display = 'none'; 
                 generatedAudioBlob = null;
             
                 try { 
-                    const textChunks = splitTextIntoChunks(text);
                     let finalPcmData = new Uint8Array(0);
                     let finalSampleRate = 24000;
             
-                    for (let i = 0; i < textChunks.length; i++) {
-                        generateLoader.title = `Đang xử lý ${i + 1}/${textChunks.length}...`;
-                        
-                        const response = await callSpeechAPI(textChunks[i], selectedVoiceId, currentSpeed); 
-                        
-                        if (response && response.audioContent) {
-                            finalSampleRate = response.sampleRate; 
-                            const pcmBytes = base64ToUint8Array(response.audioContent);
+                    for (let tIdx = 0; tIdx < tasks.length; tIdx++) {
+                        const task = tasks[tIdx];
+                        const textChunks = splitTextIntoChunks(task.text);
+
+                        for (let cIdx = 0; cIdx < textChunks.length; cIdx++) {
+                            generateLoader.title = `Đang xử lý Khối ${tIdx + 1}/${tasks.length}...`;
                             
-                            const merged = new Uint8Array(finalPcmData.length + pcmBytes.length);
-                            merged.set(finalPcmData);
-                            merged.set(pcmBytes, finalPcmData.length);
-                            finalPcmData = merged;
+                            const response = await callSpeechAPI(textChunks[cIdx], task.voiceId, currentSpeed); 
+                            
+                            if (response && response.audioContent) {
+                                finalSampleRate = response.sampleRate; 
+                                const pcmBytes = base64ToUint8Array(response.audioContent);
+                                
+                                const merged = new Uint8Array(finalPcmData.length + pcmBytes.length);
+                                merged.set(finalPcmData);
+                                merged.set(pcmBytes, finalPcmData.length);
+                                finalPcmData = merged;
+                            }
                         }
                     }
             
@@ -436,20 +559,19 @@
                 
                 const now = new Date();
                 const timeString = `${now.getHours()}h${now.getMinutes()}p${now.getSeconds()}s`;
-                
                 a.download = `Audio_TTS_${timeString}.mp3`;
                 
                 document.body.appendChild(a);
                 a.click();
-                
                 setTimeout(() => {
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(url);
                 }, 100);
             };
 
+            // Hàm Tối ưu (Gộp -> Tối ưu -> Tự động chia lại)
             const handleOptimizeText = async () => {
-                const text = textInput.value.trim();
+                const text = getAllText();
                 if (!text) { showError("Vui lòng nhập văn bản để tối ưu hóa."); return; }
                 showError(null); toggleLoading(true, 'optimize');
                 try {
@@ -460,16 +582,17 @@
                     });
                     const data = await response.json();
                     if (!response.ok || !data.success) { throw new Error(data.error || "Lỗi không xác định khi tối ưu hóa."); }
-                    textInput.value = data.optimizedText;
-                    updateCharCounter();
+                    
+                    // Chia tự động đoạn văn bản đã được AI tối ưu
+                    doAutoSplit(data.optimizedText);
+                    
                 } catch (error) { showError(error.message); } 
                 finally { toggleLoading(false, 'optimize'); }
             };
 
-            textInput.addEventListener('input', updateCharCounter);
+            // --- SỰ KIỆN GẮN CHO CÁC NÚT ĐIỀU KHIỂN CHUNG ---
             generateButton.addEventListener('click', handleGenerateSpeech);
             downloadBtn.addEventListener('click', handleDownload);
-            clearTextBtn.addEventListener('click', () => { textInput.value = ''; updateCharCounter(); textInput.focus(); });
             optimizeButton.addEventListener('click', handleOptimizeText);
 
             openVoiceModalBtn.addEventListener('click', () => { createVoiceList(); voiceModal.classList.remove('hidden'); });
@@ -479,8 +602,8 @@
             voiceListContainer.addEventListener('click', (e) => { 
                 const voiceItem = e.target.closest('[data-voice-id]'); 
                 if (voiceItem) { 
-                    selectedVoiceId = voiceItem.dataset.voiceId; 
-                    selectedVoiceNameSpan.textContent = voices.find(v => v.id === selectedVoiceId).name; 
+                    defaultVoiceId = voiceItem.dataset.voiceId; 
+                    selectedVoiceNameSpan.innerHTML = `Mặc định:<br>${voices.find(v => v.id === defaultVoiceId).name}`; 
                     createVoiceList(); 
                     setTimeout(() => voiceModal.classList.add('hidden'), 200); 
                 } 
@@ -498,9 +621,9 @@
                 audioPlayer.playbackRate = currentSpeed; 
             });
 
-            updateCharCounter();
-            createVoiceList();
-            selectedVoiceNameSpan.textContent = voices[0].name;
+            // --- KHỞI TẠO BẮT ĐẦU ---
+            createBlock(); // Khởi tạo 1 block rỗng
+            selectedVoiceNameSpan.innerHTML = `Mặc định:<br>${voices[0].name}`;
         });
     </script>
 </body>
