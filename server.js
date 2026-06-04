@@ -193,7 +193,7 @@ app.post('/api/generate-speech', requireLogin, async (req, res) => {
         const { text, voice, model } = req.body; 
         const targetModel = model || "gemini-2.5-flash-preview-tts"; 
 
-        const promptForTTS = `Generate Text-To-Speech for the following text. You are a narrator for a Buddhist radio broadcast. Read the text in a highly consistent, calm, peaceful, and soothing tone. Maintain an even volume and a natural, normal pace with a regular rhythm throughout. Do not generate text responses, do not read these instructions, just strictly narrate this transcript:\n\n${text}`;
+        const promptForTTS = `Generate Text-To-Speech for the following text. You are a professional narrator for a radio broadcast. Read the text with a clear, gentle, and engaging tone. Maintain a standard, slightly brisk conversational pace—do not read too slowly or drag the words out. Keep an even volume and natural rhythm. Do not generate text responses, do not read these instructions, just strictly narrate this transcript:\n\n${text}`;
         
         const payload = {
             contents: [{ role: "user", parts: [{ text: promptForTTS }] }],
