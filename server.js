@@ -2,7 +2,6 @@ const express = require('express');
 const fetch = require('node-fetch');
 const dotenv = require('dotenv');
 const path = require('path');
-const fs = require('fs');
 const session = require('express-session');
 const { google } = require('googleapis');
 
@@ -59,16 +58,16 @@ async function getUserRegistry() {
 }
 
 /**
- * Hàm lấy API Key dành riêng cho User hiện tại từ Session
+ * Hàm lấy MẢNG TẤT CẢ API Key dành riêng cho User hiện tại từ Session
  */
-const getApiKeyForUser = (req) => {
+const getApiKeysForUser = (req) => {
     const userApiKeys = req.session.userApiKeys;
     if (!userApiKeys) {
         throw new Error("Không tìm thấy API Key được cấp quyền cho tài khoản này.");
     }
     
-    const keys = userApiKeys.split(',').map(k => k.trim()).filter(k => k);
-    return keys[Math.floor(Math.random() * keys.length)];
+    // Trả về toàn bộ danh sách các key hợp lệ
+    return userApiKeys.split(',').map(k => k.trim()).filter(k => k);
 };
 
 // Middleware kiểm tra đăng nhập
@@ -99,7 +98,7 @@ app.get('/api/logout', (req, res) => {
     res.redirect('/login');
 });
 
-// --- API LẤY DANH SÁCH MODEL TỪ TRANG TÍNH 5 ---
+// --- API LẤY DANH SÁCH MODEL ---
 app.get('/api/models', requireLogin, async (req, res) => {
     try {
         if (!process.env.GOOGLE_SHEET_ID) return res.json({ models: ["gemini-2.5-flash-preview-tts"] });
@@ -150,18 +149,39 @@ app.get('/', (req, res) => {
 app.post('/api/optimize-text', requireLogin, async (req, res) => {
     try {
         const { text } = req.body;
-        const apiKey = getApiKeyForUser(req);
+        const keys = getApiKeysForUser(req);
         const targetModel = "gemini-2.5-flash"; 
         
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;        
         const prompt = `Với vai trò là một chuyên gia ngôn ngữ cho hệ thống AI đọc văn bản, hãy viết lại văn bản sau đây để một hệ thống text-to-speech có thể đọc tiếng Việt một cách tự nhiên và chính xác nhất. Mở rộng tất cả các từ viết tắt (ví dụ: 'TP.HCM' thành 'Thành phố Hồ Chí Minh'), viết số thành chữ (ví dụ: '1995' thành 'một nghìn chín trăm chín mươi lăm'), và làm rõ các từ có thể gây nhầm lẫn hoặc tên riêng. Chỉ trả về văn bản đã được tối ưu hóa, không thêm bất kỳ lời giải thích hay định dạng nào khác. Văn bản gốc: "${text}"`;
         const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
         
-        const apiResponse = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        const result = await apiResponse.json();
-        const optimizedText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+        let lastErrorMsg = "";
+        const shuffledKeys = keys.sort(() => 0.5 - Math.random()); // Trộn key ngẫu nhiên
+
+        // Vòng lặp thử từng API Key
+        for (const apiKey of shuffledKeys) {
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;        
+                const apiResponse = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const result = await apiResponse.json();
+                
+                if (result.error) {
+                    console.warn(`[Optimize] Key ${apiKey.substring(0, 8)}... hỏng. Đang thử key khác. Lỗi:`, result.error.message);
+                    lastErrorMsg = result.error.message;
+                    continue; // Chuyển sang key tiếp theo
+                }
+
+                const optimizedText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (optimizedText) {
+                    return res.json({ success: true, optimizedText: optimizedText.trim() });
+                }
+            } catch (err) {
+                lastErrorMsg = err.message;
+            }
+        }
         
-        res.json({ success: true, optimizedText: optimizedText.trim() });
+        throw new Error(`Toàn bộ API Key đều lỗi hoặc hết Quota. Lỗi cuối: ${lastErrorMsg}`);
+        
     } catch (error) { 
         res.status(500).json({ error: error.message }); 
     }
@@ -169,13 +189,10 @@ app.post('/api/optimize-text', requireLogin, async (req, res) => {
 
 app.post('/api/generate-speech', requireLogin, async (req, res) => {
     try {
-        const apiKey = getApiKeyForUser(req);
+        const keys = getApiKeysForUser(req);
         const { text, voice, model } = req.body; 
         const targetModel = model || "gemini-2.5-flash-preview-tts"; 
 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
-        
-        // CÂU LỆNH MỒI ĐÃ ĐIỀU CHỈNH: Trả tốc độ về mặc định nhưng giữ chặt độ ổn định ngữ khí
         const promptForTTS = `Generate Text-To-Speech for the following text. You are a narrator for a Buddhist radio broadcast. Read the text in a highly consistent, calm, peaceful, and soothing tone. Maintain an even volume and a natural, normal pace with a regular rhythm throughout. Do not generate text responses, do not read these instructions, just strictly narrate this transcript:\n\n${text}`;
         
         const payload = {
@@ -193,34 +210,58 @@ app.post('/api/generate-speech', requireLogin, async (req, res) => {
             model: targetModel
         };
         
-        const apiResponse = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        const result = await apiResponse.json();
-        
-        const audioPart = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData && p.inlineData.mimeType?.startsWith('audio/'));
-        
-        if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
-            console.error("====== LỖI TỪ GOOGLE API ======");
-            console.error("Đoạn văn bị lỗi:", text);
-            console.error("Lý do từ chối:", JSON.stringify(result, null, 2));
-            throw new Error("Một đoạn văn bản bị từ chối (Khả năng do bộ lọc an toàn). Vui lòng kiểm tra log trên máy chủ.");
+        let lastErrorMsg = "";
+        const shuffledKeys = keys.sort(() => 0.5 - Math.random()); // Trộn đều tải cho các key
+
+        // Vòng lặp: Thử từng key, nếu lỗi thì đổi qua key khác ngay lập tức
+        for (const apiKey of shuffledKeys) {
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+                const apiResponse = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const result = await apiResponse.json();
+                
+                // Nếu Google trả về lỗi (403, 429...) -> Bỏ qua, chạy vòng lặp thử Key khác
+                if (result.error) {
+                    console.warn(`[TTS] Key ${apiKey.substring(0, 8)}... bị lỗi (${result.error.code}). Đang đổi key khác.`);
+                    lastErrorMsg = result.error.message;
+                    continue; 
+                }
+                
+                const audioPart = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData && p.inlineData.mimeType?.startsWith('audio/'));
+                
+                if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
+                    console.warn(`[TTS] Key ${apiKey.substring(0, 8)}... bị chặn bởi Safety Filter. Thử key khác.`);
+                    lastErrorMsg = "Bị chặn bởi bộ lọc an toàn.";
+                    continue; // Thử key khác để xem có thoát bộ lọc không
+                }
+                
+                // --- NẾU THÀNH CÔNG, TRẢ VỀ NGAY ---
+                const audioData = audioPart.inlineData.data;
+                const mimeType = audioPart.inlineData.mimeType;
+                const rateMatch = mimeType.match(/rate=(\d+)/);
+                const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+                
+                const chunkBuffer = Buffer.from(audioData, 'base64');
+                let rawPcm = chunkBuffer;
+                
+                if (chunkBuffer.length > 44 && chunkBuffer.readUInt32BE(0) === 0x52494646) {
+                    rawPcm = chunkBuffer.subarray(44);
+                }
+                
+                return res.status(200).json({ 
+                    audioContent: rawPcm.toString('base64'), 
+                    sampleRate: sampleRate 
+                });
+
+            } catch (err) {
+                lastErrorMsg = err.message;
+            }
         }
         
-        const audioData = audioPart.inlineData.data;
-        const mimeType = audioPart.inlineData.mimeType;
-        const rateMatch = mimeType.match(/rate=(\d+)/);
-        const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
-        
-        const chunkBuffer = Buffer.from(audioData, 'base64');
-        let rawPcm = chunkBuffer;
-        
-        if (chunkBuffer.length > 44 && chunkBuffer.readUInt32BE(0) === 0x52494646) {
-            rawPcm = chunkBuffer.subarray(44);
-        }
-        
-        res.status(200).json({ 
-            audioContent: rawPcm.toString('base64'), 
-            sampleRate: sampleRate 
-        });
+        // Nếu vòng lặp kết thúc mà chưa có lệnh return nào chạy -> Tất cả Key đều hỏng
+        console.error("====== TẤT CẢ API KEY ĐỀU THẤT BẠI ======");
+        console.error("Đoạn văn:", text);
+        throw new Error(`Toàn bộ API Key của tài khoản này đều bị khóa hoặc hết hạn mức. Lỗi cuối: ${lastErrorMsg}`);
 
     } catch (error) { 
         res.status(500).json({ error: error.message }); 
