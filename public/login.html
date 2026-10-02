@@ -23,8 +23,11 @@
     <div class="w-full max-w-md bg-white rounded-3xl shadow-paper p-8 md:p-10 relative overflow-hidden">
         <div class="absolute top-0 left-0 w-full h-2 bg-clay"></div>
         <div class="text-center mb-8">
+            <!-- Thêm Logo tại đây -->
+            <img src="logo.png" alt="Logo Pháp Môn Tâm Linh" class="h-20 w-auto mx-auto mb-4 object-contain">
+            
             <h2 class="text-2xl font-bold uppercase tracking-widest text-clay mb-2">Pháp Môn Tâm Linh</h2>
-            <p class="text-ink/60 italic text-sm">Hệ thống Text-to-Speech</p>
+            <p class="text-ink/60 italic text-sm">Hệ thống Text-to-Speech Google</p>
         </div>
         <form id="loginForm" class="space-y-6">
             <div class="space-y-2">
@@ -34,6 +37,16 @@
                     <input type="email" id="email" class="w-full bg-paper border border-transparent focus:border-clay focus:bg-white focus:ring-0 rounded-xl py-3 pl-11 pr-4 text-ink placeholder-ink/30 transition-all duration-300 outline-none" placeholder="example@gmail.com" required>
                 </div>
             </div>
+            
+            <!-- THÊM: KHỐI NHẬP MẬT KHẨU -->
+            <div class="space-y-2">
+                <label class="text-sm font-semibold text-ink/80 ml-1">Mật khẩu</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i class="fa-solid fa-lock text-clay/50"></i></div>
+                    <input type="password" id="password" class="w-full bg-paper border border-transparent focus:border-clay focus:bg-white focus:ring-0 rounded-xl py-3 pl-11 pr-4 text-ink placeholder-ink/30 transition-all duration-300 outline-none" placeholder="Nhập mật khẩu..." required>
+                </div>
+            </div>
+
             <button type="submit" id="submitBtn" class="w-full bg-clay text-white font-bold py-4 rounded-2xl shadow-float hover:-translate-y-1 hover:bg-clayHover active:scale-95 transition-all duration-300 flex items-center justify-center gap-2">
                 <span>Đăng Nhập</span><i class="fa-solid fa-arrow-right"></i>
             </button>
@@ -47,6 +60,7 @@
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value; // THÊM: lấy giá trị mật khẩu
             const btn = document.getElementById('submitBtn');
             const errorBox = document.getElementById('errorBox');
             
@@ -57,10 +71,14 @@
                 const res = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email })
+                    // SỬA ĐỔI: Gửi kèm mật khẩu
+                    body: JSON.stringify({ email: email, password: password }) 
                 });
                 const data = await res.json();
-                if (data.success) { window.location.href = '/'; } 
+                
+                if (data.success) { 
+                    window.location.href = '/'; 
+                } 
                 else { 
                     document.getElementById('errorMsg').innerText = data.error; 
                     errorBox.classList.remove('hidden'); 
