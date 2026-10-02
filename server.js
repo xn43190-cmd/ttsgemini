@@ -18,9 +18,6 @@ app.use(session({
     cookie: { maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-/**
- * Hàm lấy danh sách User và API Key tương ứng từ Google Sheet
- */
 async function getUserRegistry() {
     try {
         if (!process.env.GOOGLE_SHEET_ID) return {};
@@ -36,7 +33,8 @@ async function getUserRegistry() {
         const sheets = google.sheets({ version: 'v4', auth });
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.GOOGLE_SHEET_ID,
-            range: 'Users!A:B', 
+            // SỬA ĐỔI: Mở rộng range đến cột D
+            range: 'Users!A:D', 
         });
 
         const rows = response.data.values;
@@ -46,8 +44,11 @@ async function getUserRegistry() {
         rows.forEach(row => {
             const email = row[0]?.trim().toLowerCase();
             const apiKey = row[1]?.trim();
+            const password = row[3]?.trim(); // THÊM: Lấy mật khẩu từ cột D (index 3)
+            
             if (email && apiKey) {
-                registry[email] = apiKey;
+                // SỬA ĐỔI: Lưu trữ thành object chứa cả apiKey và password
+                registry[email] = { apiKey, password };
             }
         });
         return registry;
@@ -78,18 +79,26 @@ const requireLogin = (req, res, next) => {
 
 // --- ROUTES XÁC THỰC ---
 app.post('/api/login', async (req, res) => {
+    // SỬA ĐỔI: Lấy thêm mật khẩu từ request
     const email = req.body.email?.trim().toLowerCase();
-    if (!email) return res.status(400).json({ success: false, error: "Vui lòng nhập email." });
+    const password = req.body.password?.trim();
+
+    if (!email || !password) {
+        return res.status(400).json({ success: false, error: "Vui lòng nhập đầy đủ email và mật khẩu." });
+    }
     
     const registry = await getUserRegistry();
-    const userKey = registry[email];
+    const userData = registry[email];
 
-    if (userKey) {
+    // SỬA ĐỔI: Kiểm tra email có tồn tại và mật khẩu có khớp không
+    if (userData && userData.password === password) {
         req.session.user = email;
-        req.session.userApiKeys = userKey;
+        req.session.userApiKeys = userData.apiKey; // Vẫn lưu API key vào session như cũ
         res.json({ success: true });
+    } else if (userData && userData.password !== password) {
+        res.status(401).json({ success: false, error: "Mật khẩu không chính xác." });
     } else {
-        res.status(403).json({ success: false, error: "Email này không có trong danh sách hoặc chưa được cấp API Key." });
+        res.status(403).json({ success: false, error: "Email này không có trong hệ thống hoặc chưa được cấp API Key." });
     }
 });
 
